@@ -25,44 +25,35 @@
         .bar-sun { background: #ffdc00; box-shadow: 0 0 15px #ffdc00; }
         .details { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
         .info-card { background: var(--card); padding: 18px; border-radius: 22px; font-size: 0.85rem; line-height: 1.7; border: 1px solid #2c2c2e; }
-        .info-card b { color: var(--accent); font-size: 1.1rem; }
         .weekly { margin-top: 15px; background: var(--card); padding: 20px; border-radius: 30px; border: 1px solid #2c2c2e; }
         .day { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #333; }
-        .update-time { font-size: 0.7rem; color: #444; margin-top: 20px; text-align: center; font-style: italic; }
+        .update-time { font-size: 0.7rem; color: #444; margin-top: 20px; text-align: center; }
     </style>
 </head>
 <body>
-
 <div class="app-container">
-    <header>
-        <div class="author">Autor: Tomasz Szydło</div>
-        <h2 style="margin: 5px 0; color: var(--accent); font-weight: 800; letter-spacing: -1px;">tomitornado pogoda</h2>
-    </header>
-
+    <header><div class="author">Autor: Tomasz Szydło</div><h2 style="color: var(--accent);">tomitornado pogoda</h2></header>
     <div class="search-box">
-        <input type="text" id="citySearch" placeholder="Wpisz miejscowość..." oninput="autoSuggest()">
+        <input type="text" id="citySearch" placeholder="Wyszukaj miejscowość..." oninput="autoSuggest()">
         <button class="gps-btn" onclick="getLocation()">📍</button>
         <div id="suggestions"></div>
     </div>
-
     <div id="app" style="display:none;">
         <div class="main-card">
-            <small id="locName" style="color: #0a84ff; text-transform: uppercase; letter-spacing: 1px; font-weight: bold;"></small>
-            <div id="mainEmoji" style="font-size: 4.5rem; margin-top: 15px;">☀️</div>
+            <small id="locName" style="color: #0a84ff; font-weight: bold;"></small>
+            <div id="mainEmoji" style="font-size: 4rem; margin-top: 15px;">☀️</div>
             <div class="temp-big" id="currentTemp">--°</div>
             <div id="colorBar"></div>
-            <div id="weatherState" style="text-transform: capitalize; font-size: 1.2rem; font-weight: 500;">Pobieranie...</div>
+            <div id="weatherState" style="text-transform: capitalize;">--</div>
         </div>
-
         <div class="details">
             <div class="info-card">💧 Opady: <b id="rainProb">--</b><br>⏲️ Ciśnienie: <b id="pres">--</b></div>
             <div class="info-card">💨 Wiatr: <b id="windSpeed">--</b><br>🌅 Zachód: <b id="sunSet">--</b></div>
         </div>
         <div class="weekly" id="weekList"></div>
-        <div class="update-time" id="lastUpdate"></div>
+        <div id="lastUpdate" class="update-time"></div>
     </div>
 </div>
-
 <script>
 const codes = { 0: "☀️ Słonecznie", 1: "🌤️ Przejaśnienia", 2: "⛅ Częściowe zachmurzenie", 3: "☁️ Pochmurno", 45: "🌫️ Mgła", 61: "🌧️ Deszcz", 71: "❄️ Śnieg", 95: "⛈️ Burza" };
 const iconsOnly = { 0: "☀️", 1: "🌤️", 2: "⛅", 3: "☁️", 45: "🌫️", 61: "🌧️", 71: "❄️", 95: "⛈️" };
@@ -79,13 +70,11 @@ async function autoSuggest() {
         const r = await fetch(`https://open-meteo.com{val}&count=5&language=pl&format=json`);
         const d = await r.json();
         let h = "";
-        if(d.results) {
-            d.results.forEach(l => {
-                h += `<div class="sugg-item" onclick="selectLoc(${l.latitude}, ${l.longitude}, '${l.name}')">📍 ${l.name} (${l.admin1 || ''})</div>`;
-            });
-            document.getElementById('suggestions').innerHTML = h;
-        }
-    } catch(e) { console.error(e); }
+        if(d.results) d.results.forEach(l => {
+            h += `<div class="sugg-item" onclick="selectLoc(${l.latitude}, ${l.longitude}, '${l.name}')">📍 ${l.name} (${l.admin1 || ''})</div>`;
+        });
+        document.getElementById('suggestions').innerHTML = h;
+    } catch(e) {}
 }
 
 function selectLoc(lat, lon, name) {
@@ -96,29 +85,24 @@ function selectLoc(lat, lon, name) {
 }
 
 function getLocation() {
-    navigator.geolocation.getCurrentPosition(p => {
-        selectLoc(p.coords.latitude, p.coords.longitude, "Moja Lokalizacja");
-    }, (err) => {
-        alert("Błąd GPS: " + err.message + ". Wpisz miasto ręcznie!");
-    });
+    navigator.geolocation.getCurrentPosition(p => selectLoc(p.coords.latitude, p.coords.longitude, "Moja Lokalizacja"), () => alert("Zezwól na GPS!"));
 }
 
 async function fetchWeather(lat, lon, name) {
     try {
-        const response = await fetch(`https://open-meteo.com{lat}&longitude=${lon}&current=temperature_2m,precipitation,weather_code,pressure_msl,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset&timezone=auto`);
-        if (!response.ok) throw new Error("Błąd sieci");
-        const data = await response.json();
+        const res = await fetch(`https://open-meteo.com{lat}&longitude=${lon}&current=temperature_2m,precipitation,weather_code,pressure_msl,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset&timezone=auto`);
+        if(!res.ok) throw new Error();
+        const data = await res.json();
         
         document.getElementById('app').style.display = 'block';
         document.getElementById('locName').innerText = name;
         const cur = data.current;
         const temp = Math.round(cur.temperature_2m);
-        
         document.getElementById('currentTemp').innerText = temp + "°";
         document.getElementById('rainProb').innerText = cur.precipitation + " mm";
         document.getElementById('pres').innerText = Math.round(cur.pressure_msl) + " hPa";
         document.getElementById('windSpeed').innerText = cur.wind_speed_10m + " km/h";
-        document.getElementById('sunSet').innerText = data.daily.sunset.slice(11);
+        document.getElementById('sunSet').innerText = "Zachód: " + data.daily.sunset.slice(11);
         document.getElementById('mainEmoji').innerText = iconsOnly[cur.weather_code] || "🌤️";
         document.getElementById('weatherState').innerText = codes[cur.weather_code] || "Zmiennie";
 
@@ -138,8 +122,7 @@ async function fetchWeather(lat, lon, name) {
         document.getElementById('weekList').innerHTML = wH;
         document.getElementById('lastUpdate').innerText = "Aktualizacja: " + new Date().toLocaleTimeString();
     } catch(e) {
-        console.error(e);
-        alert("Błąd połączenia z serwerem pogodowym. Spróbuj wyłączyć 'Zapobieganie śledzeniu' lub wpisz miasto ręcznie.");
+        alert("Błąd połączenia. Spróbuj za chwilę lub sprawdź w innej przeglądarce.");
     }
 }
 </script>
