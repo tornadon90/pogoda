@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>tomitornado pogoda</title>
+    <style>
+        :root { --bg: #0a0a0c; --card: #1c1c1e; --accent: #0a84ff; }
+        body { font-family: -apple-system, sans-serif; background: var(--bg); color: white; margin: 0; padding: 15px; display: flex; flex-direction: column; align-items: center; }
+        .app-container { width: 100%; max-width: 400px; }
+        header { text-align: center; margin-bottom: 20px; }
+        .author { font-size: 0.7rem; color: #888; text-transform: uppercase; letter-spacing: 1px; }
+        .logo-container { margin: 15px 0; }
+        .logo-img { max-width: 140px; height: auto; border-radius: 10px; }
+        .search-box { position: relative; display: flex; gap: 8px; margin-bottom: 20px; align-items: center; }
+        input { flex: 1; padding: 14px; border-radius: 15px; border: none; background: var(--card); color: white; outline: none; font-size: 1rem; }
+        .gps-btn { background: #32d74b; border: none; border-radius: 15px; width: 50px; height: 50px; cursor: pointer; font-size: 1.5rem; display: flex; align-items: center; justify-content: center; }
+        #suggestions { position: absolute; top: 55px; width: 100%; background: #2c2c2e; border-radius: 15px; z-index: 100; box-shadow: 0 10px 30px rgba(0,0,0,0.7); overflow: hidden; }
+        .sugg-item { padding: 14px; border-bottom: 1px solid #3a3a3c; cursor: pointer; font-size: 0.95rem; }
+        .sugg-item:hover { background: #3a3a3c; }
+        .main-card { background: var(--card); padding: 30px; border-radius: 35px; text-align: center; margin-bottom: 15px; border: 1px solid #2c2c2e; }
+        .temp-big { font-size: 5.5rem; font-weight: 200; margin: 5px 0; letter-spacing: -2px; }
+        #colorBar { height: 8px; width: 60%; margin: 15px auto; border-radius: 4px; transition: 1s ease; }
+        .bar-cold { background: linear-gradient(90deg, #001f3f, #0074d9); box-shadow: 0 0 15px #0074d9; }
+        .bar-rain { background: #4da6ff; box-shadow: 0 0 20px #4da6ff; }
+        .bar-snow { background: #ffffff; box-shadow: 0 0 25px #fff; }
+        .bar-hot { background: linear-gradient(90deg, #ff851b, #ff4136); box-shadow: 0 0 20px #ff4136; }
+        .bar-sun { background: #ffdc00; box-shadow: 0 0 15px #ffdc00; }
+        .details { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .info-card { background: var(--card); padding: 18px; border-radius: 22px; font-size: 0.85rem; line-height: 1.7; border: 1px solid #2c2c2e; }
+        .info-card b { color: var(--accent); font-size: 1.1rem; }
+        .weekly { margin-top: 15px; background: var(--card); padding: 20px; border-radius: 30px; border: 1px solid #2c2c2e; }
+        .day { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #333; }
+        .update-time { font-size: 0.7rem; color: #444; margin-top: 20px; text-align: center; font-style: italic; }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    <header>
+        <div class="author">Autor: Tomasz Szydło</div>
+        <div class="logo-container">
+            <img class="logo-img" src="data:image/png;base64,TU_WKLEJ_SWOJ_KOD_BASE64" alt="LOGO" onerror="this.style.display='none'">
+        </div>
+        <h2 style="margin: 5px 0; color: var(--accent); font-weight: 800; letter-spacing: -1px;">tomitornado pogoda</h2>
+    </header>
+
+    <div class="search-box">
+        <input type="text" id="citySearch" placeholder="Wpisz miejscowość..." oninput="autoSuggest()">
+        <button class="gps-btn" onclick="getLocation()">📍</button>
+        <div id="suggestions"></div>
+    </div>
+
+    <div id="app" style="display:none;">
+        <div class="main-card">
+            <small id="locName" style="color: #0a84ff; text-transform: uppercase; letter-spacing: 1px; font-weight: bold;"></small>
+            <div id="mainEmoji" style="font-size: 4.5rem; margin-top: 15px;">☀️</div>
+            <div class="temp-big" id="currentTemp">--°</div>
+            <div id="colorBar"></div>
+            <div id="weatherState" style="text-transform: capitalize; font-size: 1.2rem; font-weight: 500;">Pobieranie...</div>
+        </div>
+
+        <div class="details">
+            <div class="info-card">💧 Opady: <b id="rainProb">--</b><br>⏲️ Ciśnienie: <b id="pres">--</b></div>
+            <div class="info-card">💨 Wiatr: <b id="windSpeed">--</b><br>🌅 Zachód: <b id="sunSet">--</b></div>
+        </div>
+        <div class="weekly" id="weekList"></div>
+        <div class="update-time" id="lastUpdate"></div>
+    </div>
+</div>
+
+<script>
+const codes = { 0: "☀️ Słonecznie", 1: "🌤️ Przejaśnienia", 2: "⛅ Częściowe zachmurzenie", 3: "☁️ Pochmurno", 45: "🌫️ Mgła", 61: "🌧️ Deszcz", 71: "❄️ Śnieg", 95: "⛈️ Burza" };
+const iconsOnly = { 0: "☀️", 1: "🌤️", 2: "⛅", 3: "☁️", 45: "🌫️", 61: "🌧️", 71: "❄️", 95: "⛈️" };
+
+window.onload = () => {
+    const last = JSON.parse(localStorage.getItem('lastLoc'));
+    if(last) fetchWeather(last.lat, last.lon, last.name);
+};
+
+async function autoSuggest() {
+    const val = document.getElementById('citySearch').value;
+    if(val.length < 3) return;
+    try {
+        const r = await fetch(`https://open-meteo.com{val}&count=5&language=pl&format=json`);
+        const d = await r.json();
+        let h = "";
+        if(d.results) {
+            d.results.forEach(l => {
+                h += `<div class="sugg-item" onclick="selectLoc(${l.latitude}, ${l.longitude}, '${l.name}')">📍 ${l.name} (${l.admin1 || ''})</div>`;
+            });
+            document.getElementById('suggestions').innerHTML = h;
+        }
+    } catch(e) { console.error(e); }
+}
+
+function selectLoc(lat, lon, name) {
+    document.getElementById('suggestions').innerHTML = "";
+    document.getElementById('citySearch').value = name;
+    localStorage.setItem('lastLoc', JSON.stringify({lat, lon, name}));
+    fetchWeather(lat, lon, name);
+}
+
+function getLocation() {
+    navigator.geolocation.getCurrentPosition(p => {
+        selectLoc(p.coords.latitude, p.coords.longitude, "Twoja Lokalizacja");
+    }, () => alert("Zezwól na GPS!"));
+}
+
+async function fetchWeather(lat, lon, name) {
+    try {
+        const res = await fetch(`https://open-meteo.com{lat}&longitude=${lon}&current=temperature_2m,precipitation,weather_code,pressure_msl,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset&timezone=auto`);
+        const data = await res.json();
+        
+        document.getElementById('app').style.display = 'block';
+        document.getElementById('locName').innerText = name;
+        const cur = data.current;
+        const temp = Math.round(cur.temperature_2m);
+        
+        document.getElementById('currentTemp').innerText = temp + "°";
+        document.getElementById('rainProb').innerText = cur.precipitation + " mm";
+        document.getElementById('pres').innerText = Math.round(cur.pressure_msl) + " hPa";
+        document.getElementById('windSpeed').innerText = cur.wind_speed_10m + " km/h";
+        document.getElementById('sunSet').innerText = data.daily.sunset.slice(11);
+        document.getElementById('mainEmoji').innerText = iconsOnly[cur.weather_code] || "🌤️";
+        document.getElementById('weatherState').innerText = codes[cur.weather_code] || "Zmiennie";
+
+        const bar = document.getElementById('colorBar');
+        bar.className = "";
+        if(cur.weather_code >= 71) bar.classList.add('bar-snow');
+        else if(cur.precipitation > 0) bar.classList.add('bar-rain');
+        else if(temp < 0) bar.classList.add('bar-cold');
+        else if(temp > 28) bar.classList.add('bar-hot');
+        else bar.classList.add('bar-sun');
+
+        let wH = "";
+        for(let i=0; i<7; i++) {
+            const dn = new Date(data.daily.time[i]).toLocaleDateString('pl', {weekday: 'short'});
+            wH += `<div class="day"><span style="text-transform:capitalize; width:50px">${dn}</span><span>${iconsOnly[data.daily.weather_code[i]]}</span><b style="width:60px; text-align:right">${Math.round(data.daily.temperature_2m_max[i])}°</b></div>`;
+        }
+        document.getElementById('weekList').innerHTML = wH;
+        document.getElementById('lastUpdate').innerText = "Aktualizacja: " + new Date().toLocaleTimeString();
+    } catch(e) { alert("Błąd API!"); }
+}
+</script>
+</body>
+</html>
